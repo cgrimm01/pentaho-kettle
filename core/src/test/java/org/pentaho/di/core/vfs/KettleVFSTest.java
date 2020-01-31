@@ -59,8 +59,9 @@ public class KettleVFSTest {
     String[] schemes = {"hdfs"};
     String vfsFilename = "hdfs://hsbcmaster:8020/tmp/acltest/";
 
-    boolean testVfsFilename = KettleVFS.checkForSchemeProvider( schemes, true, vfsFilename, null, null );
-    assertFalse( testVfsFilename );
+    FileInfoContainer fileInfo = new FileInfoContainer();
+    KettleVFS.checkForSchemeProvider( schemes, vfsFilename, null, fileInfo );
+    assertFalse( fileInfo.relativeFilename );
 
   }
 
@@ -69,8 +70,9 @@ public class KettleVFSTest {
     String[] schemes = {"file"};
     String vfsFilename = "hdfs://hsbcmaster:8020/tmp/acltest/";
 
-    boolean testVfsFilename = KettleVFS.checkForSchemeProvider( schemes, true, vfsFilename, null, null );
-    assertTrue( testVfsFilename );
+    FileInfoContainer fileInfo = new FileInfoContainer();
+    KettleVFS.checkForSchemeProvider( schemes, vfsFilename, null, fileInfo );
+    assertTrue( fileInfo.relativeFilename );
 
   }
 
@@ -79,8 +81,9 @@ public class KettleVFSTest {
     String[] schemes = {"file"};
     String vfsFilename = "\"/tmp/acltest/\"";
 
-    boolean testVfsFilename = KettleVFS.checkForSchemeProvider( schemes, true, vfsFilename, null, null );
-    assertTrue( testVfsFilename );
+    FileInfoContainer fileInfo = new FileInfoContainer();
+    KettleVFS.checkForSchemeProvider( schemes, vfsFilename, null, fileInfo );
+    assertTrue( fileInfo.relativeFilename );
 
   }
 
@@ -89,8 +92,9 @@ public class KettleVFSTest {
     String[] schemes = {"file"};
     String vfsFilename = " ";
 
-    boolean testVfsFilename = KettleVFS.checkForSchemeProvider( schemes, true, vfsFilename, null, null );
-    assertTrue( testVfsFilename );
+    FileInfoContainer fileInfo = new FileInfoContainer();
+    KettleVFS.checkForSchemeProvider( schemes, vfsFilename, null, fileInfo );
+    assertTrue( fileInfo.relativeFilename );
 
   }
 
@@ -99,8 +103,9 @@ public class KettleVFSTest {
     String[] schemes = {"file"};
     String vfsFilename = null;
 
-    boolean testVfsFilename = KettleVFS.checkForSchemeProvider( schemes, true, vfsFilename, null, null );
-    assertTrue( testVfsFilename );
+    FileInfoContainer fileInfo = new FileInfoContainer();
+    KettleVFS.checkForSchemeProvider( schemes, vfsFilename, null, fileInfo );
+    assertTrue( fileInfo.relativeFilename );
 
   }
 

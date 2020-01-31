@@ -61,14 +61,13 @@ public class KettleVFS {
   private static Class<?> PKG = KettleVFS.class; // for i18n purposes, needed by Translator2!!
 
   private static final KettleVFS kettleVFS = new KettleVFS();
-  private static FileSystemOptions fsOptionsForScheme;
   private final DefaultFileSystemManager fsm;
   private static final int TIMEOUT_LIMIT = 9000;
   private static final int TIME_TO_SLEEP_STEP = 50;
   private static final String PROVIDER_PATTERN_SCHEME = "^[\\w\\d]+://(.*)";
 
   private static VariableSpace defaultVariableSpace;
-
+  
   static {
     // Create a new empty variable space...
     //
@@ -132,16 +131,21 @@ public class KettleVFS {
   //
   public static FileObject getFileObject( String vfsFilename, VariableSpace space, FileSystemOptions fsOptions )
     throws KettleFileException {
+    
+    //  Protect the code below from invalid input.  One of those SHOULD NEVER HAPPEN... HA!
+    if (null == vfsFilename) {
+        throw new KettleFileException("Unexpected null VFS filename", new NullPointerException("KettleVFS.getFileObject() vfsFilename is NULL"));
+    }
+    
     try {
-      fsOptionsForScheme = fsOptions;
+      FileInfoContainer fileInfo = new FileInfoContainer();
+      fileInfo.fsOptions = fsOptions;
+        
       FileSystemManager fsManager = getInstance().getFileSystemManager();
       int timeOut = TIMEOUT_LIMIT;
-      boolean relativeFilename = true;
       String[] initialSchemes = fsManager.getSchemes();
 
-      relativeFilename = checkForSchemeProvider( initialSchemes, relativeFilename, vfsFilename, space, fsOptionsForScheme );
-
-      boolean hasScheme = vfsFilename != null && hasScheme( vfsFilename, PROVIDER_PATTERN_SCHEME );
+      checkForSchemeProvider( initialSchemes, vfsFilename, space, fileInfo );
 
       //Waiting condition - PPP-4374:
       //We have to check for hasScheme even if it is marked as a relative path because that scheme could not
@@ -149,32 +153,28 @@ public class KettleVFS {
       //So we check if - even it is marked as relative path - our vfsFilename has a possible scheme format (PROVIDER_PATTERN_SCHEME)
       //If it does, then give it some time to be loaded. It stops when timeout is up or a scheme is found.
 
-      while ( relativeFilename && hasScheme && timeOut > 0 ) {
-        String[] schemes = fsManager.getSchemes();
-        try {
-          Thread.sleep( TIME_TO_SLEEP_STEP );
-          timeOut -= TIME_TO_SLEEP_STEP;
-          relativeFilename = checkForSchemeProvider( schemes, relativeFilename, vfsFilename, space, fsOptionsForScheme );
-        } catch ( InterruptedException e ) {
-          relativeFilename = false;
-          Thread.currentThread().interrupt();
-          break;
-        }
+      if (hasScheme( vfsFilename, PROVIDER_PATTERN_SCHEME ) ) {
+          while ( fileInfo.relativeFilename && timeOut > 0 ) {
+              String[] schemes = fsManager.getSchemes();
+              try {
+                Thread.sleep( TIME_TO_SLEEP_STEP );
+                timeOut -= TIME_TO_SLEEP_STEP;
+                checkForSchemeProvider( schemes, vfsFilename, space, fileInfo );
+              } catch ( InterruptedException e ) {
+                Thread.currentThread().interrupt();
+                break;
+              }
+            }
       }
 
-      String filename = normalizePath( vfsFilename, relativeFilename );
+      String filename = normalizePath( vfsFilename, fileInfo.relativeFilename );
 
-      return myGetFileObject( filename );
-
+      return fileInfo.fsOptions != null ? fsManager.resolveFile( filename, fileInfo.fsOptions ) : fsManager.resolveFile( filename );
+      
     } catch ( IOException e ) {
       throw new KettleFileException( "Unable to get VFS File object for filename '"
         + cleanseFilename( vfsFilename ) + "' : " + e.getMessage(), e );
     }
-  }
-
-  protected static FileObject myGetFileObject( String filename ) throws FileSystemException {
-    FileSystemManager fsManager = getInstance().getFileSystemManager();
-    return fsOptionsForScheme != null ? fsManager.resolveFile( filename, fsOptionsForScheme ) : fsManager.resolveFile( filename );
   }
 
   protected static String normalizePath( String path, boolean relativeFilename ) {
@@ -203,17 +203,19 @@ public class KettleVFS {
     return hasScheme;
   }
 
-  protected static boolean checkForSchemeProvider( String[] initialSchemes, boolean relativeFilename, String vfsFilename,
-                                         VariableSpace space, FileSystemOptions fsOptions )
+  protected static void checkForSchemeProvider( String[] initialSchemes, String vfsFilename,
+                                         VariableSpace space, FileInfoContainer fileInfo )
     throws IOException {
-    for ( int i = 0; i < initialSchemes.length && relativeFilename; i++ ) {
+    for ( int i = 0; i < initialSchemes.length; i++ ) {
       if ( vfsFilename != null && vfsFilename.startsWith( initialSchemes[ i ] + ":" ) ) {
-        relativeFilename = false;
-        // We have a VFS URL, load any options for the file system driver
-        fsOptionsForScheme = buildFsOptions( space, fsOptions, vfsFilename, initialSchemes[ i ] );
+          fileInfo.relativeFilename = false;
+          fileInfo.fsOptions = buildFsOptions( space, fileInfo.fsOptions, vfsFilename, initialSchemes[ i ] );
+
+          break; // Add one here.
       }
     }
-    return relativeFilename;
+
+    return;
   }
 
   /**
